@@ -44,6 +44,10 @@ int cmp_di (const void *a, const void *b) {
 void 
 wc(int *nl, int *nw, int *nc, FILE *stream)
 {
+	*nl = 0;
+	*nw = 0;
+	*nc = 0;
+
 	int is_blank = 0;
 	int c;
 	while ((c = fgetc(stream)) != EOF)
@@ -71,6 +75,9 @@ wc(int *nl, int *nw, int *nc, FILE *stream)
 void 
 char_count(int char_no, int *n_char, int *cnt, FILE *stream)
 {
+	*n_char = 0;
+	*cnt = 0;
+
 	char ch_tab[MAX_CHARS];
 	for (int i = 0; i < MAX_CHARS; i++)
 		ch_tab[i] = i;
@@ -97,6 +104,10 @@ char_count(int char_no, int *n_char, int *cnt, FILE *stream)
 void 
 digram_count(int digram_no, int digram[], FILE *stream)
 {
+	digram[0] = 0;
+	digram[1] = 0;
+	digram[2] = 0;
+	
 	int di_tab[MAX_DIGRAMS];
 	for (int i = 0; i < MAX_DIGRAMS; i++)
 		di_tab[i] = i;
@@ -127,7 +138,35 @@ digram_count(int digram_no, int digram[], FILE *stream)
 void 
 find_comments(int *line_comment_counter, int *block_comment_counter, FILE *stream)
 {
+	*line_comment_counter = 0;
+	*block_comment_counter = 0;
 
+	char c;
+	int in_comm = 0;
+	int blk_comm = 0;
+	while ((c = fgetc(stream)) != EOF)
+	{
+		if (!in_comm && c == '/')
+		{
+			c = fgetc(stream);
+			if (c == '/' || c == '*')
+			{
+				in_comm = 1;
+				blk_comm = c == '*';
+			}
+
+			if (!blk_comm) (*line_comment_counter)++;
+			else (*block_comment_counter)++;
+		}
+
+		if (in_comm && !blk_comm && c == '\n') in_comm = 0;
+
+		while (in_comm && blk_comm && c == '*')
+		{
+			c = fgetc(stream);
+			if (c == '/') in_comm = 0;
+		}
+	}
 }
 
 #define MAX_LINE 128
