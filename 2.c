@@ -13,6 +13,7 @@
 #define HASHMAP_SIZE 4019
 
 #define TEST 0  // 1 - dla testowania,  0 - dla automatycznej oceny
+// #define PRINT // uncomment before define to print each ident
 
 int index_cmp(const void*, const void*);
 int cmp(const void*, const void*);
@@ -86,6 +87,7 @@ enum parse_mode
 	CHAR,
 	NUMBER,
 	HEADER,
+	SKIP,
 	BUF_OVFL
 };
 
@@ -131,6 +133,7 @@ parse_state(char c, struct parse_state *s)
 					break;
 				case '#':
 					s->mode = HEADER;
+					s->buf_off = 0; // reset buf for directive label
 					break;
 				default:
 					break;
@@ -152,10 +155,9 @@ parse_state(char c, struct parse_state *s)
 			if (!IS_IDENT(c))
 			{
 				s->buf[s->buf_off] = '\0';
-				// puts(s->buf);
 				
 				int size = s->buf_off + 1;
-				s->buf_off = 0; // reset buffer for next token
+				s->buf_off = 0; // reset buf for next token
 				
 				char *p = malloc(size);
 				if (p == NULL) return 0;
@@ -163,7 +165,10 @@ parse_state(char c, struct parse_state *s)
 
 				if (!hashmap_find(s->buf)) 
 				{
-					puts(p);
+				    #ifdef PRINT 
+				    puts(p);
+				    #endif
+					
 					hashmap_add(p);
 					return 1;
 				}
@@ -191,8 +196,8 @@ parse_state(char c, struct parse_state *s)
 			break;
 
 		case LINE_COMM:
-		case HEADER: // just skip - will not register unused macros though
-			if (c == '\n') state_to_norm(s);
+		case SKIP:
+			if (c == '\n' || c == '\r') state_to_norm(s);
 			break;
 
 		case BLK_COMM:
@@ -205,6 +210,30 @@ parse_state(char c, struct parse_state *s)
 		
 		case CHAR:
 			if (s->lc != '\\' && c == '\'') state_to_norm(s);
+			break;
+
+		case HEADER: // does not skip - will register unused defines
+			if (s->buf_off + 1 >= MAX_ID_LEN)
+			{
+				s->mode = BUF_OVFL;
+				return 0;
+			}
+
+			if (!IS_IDENT_START(c))
+			{
+				s->buf[s->buf_off] = '\0';
+				int has_ident =
+					strncmp(s->buf, "define", MAX_ID_LEN) == 0 ||
+					strncmp(s->buf, "ifndef", MAX_ID_LEN) == 0 ||
+					strncmp(s->buf, "ifdef", MAX_ID_LEN) == 0;
+
+				if (has_ident) state_to_norm(s);
+				else s->mode = SKIP;
+			}
+			else
+			{
+				s->buf[s->buf_off++] = c;
+			}
 			break;
 
 		case NUMBER:
