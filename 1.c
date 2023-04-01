@@ -59,11 +59,12 @@ wc(int *nl, int *nw, int *nc, FILE *stream)
 				(*nl)++;
 			case ' ':
 			case '\t':
-				if (!is_blank) (*nw)++;
 				is_blank = 1;
 				break;
 			default:
+				if (is_blank) (*nw)++;
 				is_blank = 0;
+				break;
 		}
 	}
 }
@@ -78,7 +79,7 @@ char_count(int char_no, int *n_char, int *cnt, FILE *stream)
 	*n_char = 0;
 	*cnt = 0;
 
-	char ch_tab[MAX_CHARS];
+	int ch_tab[MAX_CHARS];
 	for (int i = 0; i < MAX_CHARS; i++)
 		ch_tab[i] = i;
 
@@ -90,10 +91,11 @@ char_count(int char_no, int *n_char, int *cnt, FILE *stream)
 		count[i]++;
 	}
 
-	qsort(ch_tab, MAX_CHARS, sizeof(char), cmp);
+	qsort(ch_tab, MAX_CHARS, sizeof(int), cmp);
 
-	*n_char = ch_tab[char_no - 1] + FIRST_CHAR;
-	*cnt = count[*n_char];
+	int ci = ch_tab[char_no - 1];
+	*n_char = ci + FIRST_CHAR;
+	*cnt = ci;
 }
 
 // count how many times each digram (a pair of characters, from [FIRST_CHAR,
@@ -120,7 +122,7 @@ digram_count(int digram_no, int digram[], FILE *stream)
 		c1 = c;
 
 		if (c1 < FIRST_CHAR || c1 >= LAST_CHAR || c0 < FIRST_CHAR || c1 >= LAST_CHAR) continue;
-		i = (c1 - FIRST_CHAR) * MAX_CHARS + c0 - FIRST_CHAR;
+		i = (c0 - FIRST_CHAR) * MAX_CHARS + c1 - FIRST_CHAR;
 		count[i]++;
 	}
 
@@ -128,8 +130,8 @@ digram_count(int digram_no, int digram[], FILE *stream)
 
 	int d = di_tab[digram_no - 1];
 
-	digram[0] = d % MAX_CHARS + FIRST_CHAR;
-	digram[1] = d / MAX_CHARS + FIRST_CHAR;
+	digram[0] = d / MAX_CHARS + FIRST_CHAR;
+	digram[1] = d % MAX_CHARS + FIRST_CHAR;
 	digram[2] = count[d];
 }
 
@@ -155,16 +157,22 @@ find_comments(int *line_comment_counter, int *block_comment_counter, FILE *strea
 				blk_comm = c == '*';
 			}
 
-			if (!blk_comm) (*line_comment_counter)++;
-			else (*block_comment_counter)++;
 		}
 
-		if (in_comm && !blk_comm && c == '\n') in_comm = 0;
+		if (in_comm && !blk_comm && c == '\n')
+		{
+			in_comm = 0;
+			(*line_comment_counter)++;
+		}
 
 		while (in_comm && blk_comm && c == '*')
 		{
 			c = fgetc(stream);
-			if (c == '/') in_comm = 0;
+			if (c == '/') 
+			{
+				in_comm = 0;
+				(*block_comment_counter)++;
+			}
 		}
 	}
 }
