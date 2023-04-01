@@ -10,9 +10,9 @@
 
 #define MAX_ID_LEN 64
 #define MAX_IDS 1024
-#define HASHMAP_SIZE 1019
+#define HASHMAP_SIZE 4019
 
-#define TEST 1  // 1 - dla testowania,  0 - dla automatycznej oceny
+#define TEST 0  // 1 - dla testowania,  0 - dla automatycznej oceny
 
 int index_cmp(const void*, const void*);
 int cmp(const void*, const void*);
@@ -83,6 +83,9 @@ enum parse_mode
 	LINE_COMM,
 	BLK_COMM,
 	STRING,
+	CHAR,
+	NUMBER,
+	HEADER,
 	BUF_OVFL
 };
 
@@ -101,12 +104,13 @@ state_to_norm(struct parse_state *s)
 	s->buf_off = 0;
 }
 
-#define IS_BLANK(C) (C == ' ' || C == '\t' || C == '\n')
-#define IS_IDENT(C) ( \
+#define IS_NUM(C) (C >= '0' && C <= '9')
+#define IS_IDENT_START(C) ( \
 		(C >= 'a' && C <= 'z') || \
 		(C >= 'A' && C <= 'Z') || \
-		(C >= '0' && C <= '9') || \
 		C == '_')
+#define IS_IDENT(C) (IS_IDENT_START(C) || IS_NUM(C))
+
 
 int
 parse_state(char c, struct parse_state *s)
@@ -122,6 +126,12 @@ parse_state(char c, struct parse_state *s)
 				case '"':
 					s->mode = STRING;
 					break;
+				case '\'':
+					s->mode = CHAR;
+					break;
+				case '#':
+					s->mode = HEADER;
+					break;
 				default:
 					break;
 			}
@@ -131,13 +141,32 @@ parse_state(char c, struct parse_state *s)
 				s->mode = BUF_OVFL;
 				return 0;
 			}
+
+			if (s->mode != NORM) break;
+
+			if (s->buf_off == 0 && !IS_IDENT_START(c)) {
+				if (IS_NUM(c)) s->mode = NUMBER;
+				break;
+			}
 			
 			if (!IS_IDENT(c))
 			{
 				s->buf[s->buf_off] = '\0';
-				puts(s->buf);
+				// puts(s->buf);
+				
+				int size = s->buf_off + 1;
 				s->buf_off = 0; // reset buffer for next token
-				return hashmap_find(s->buf);
+				
+				char *p = malloc(size);
+				if (p == NULL) return 0;
+				memcpy(p, s->buf, size);
+
+				if (!hashmap_find(s->buf)) 
+				{
+					puts(p);
+					hashmap_add(p);
+					return 1;
+				}
 			}
 			else
 			{
@@ -162,6 +191,7 @@ parse_state(char c, struct parse_state *s)
 			break;
 
 		case LINE_COMM:
+		case HEADER: // just skip - will not register unused macros though
 			if (c == '\n') state_to_norm(s);
 			break;
 
@@ -172,9 +202,14 @@ parse_state(char c, struct parse_state *s)
 		case STRING:
 			if (s->lc != '\\' && c == '"') state_to_norm(s);
 			break;
+		
+		case CHAR:
+			if (s->lc != '\\' && c == '\'') state_to_norm(s);
+			break;
 
+		case NUMBER:
 		case BUF_OVFL:
-			if (IS_BLANK(c)) state_to_norm(s);
+			if (!IS_IDENT(c)) state_to_norm(s);
 			break;
 	}
 
