@@ -165,9 +165,9 @@ parse_state(char c, struct parse_state *s)
 
 				if (!hashmap_find(s->buf)) 
 				{
-				    #ifdef PRINT 
-				    puts(p);
-				    #endif
+					#ifdef PRINT 
+					puts(p);
+					#endif
 					
 					hashmap_add(p);
 					return 1;
